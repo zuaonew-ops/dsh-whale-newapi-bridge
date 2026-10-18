@@ -1,0 +1,79 @@
+{
+  "_provenance": {
+    "generator": "test/probe-relay.mjs",
+    "schema": "dsh-whale-newapi-bridge/probe-relay@1",
+    "capturedAt": "2026-10-04T20:51:49.745Z",
+    "baseUrl": "https://relay.example.com",
+    "upstreamVersion": "v1.0.0-rc.40",
+    "sanitization": "所有形如 sk-… 的字符串已替换为 sk-***len=N；其余键名、结构与数值保持原样",
+    "legend": {
+      "real": "响应体直接来自本机中转站实测（已脱敏）",
+      "constructed": "本机无法取得该成功响应，按上游源码字段形状构造"
+    }
+  },
+  "files": {
+    "status.json": {
+      "endpoint": "GET /api/status",
+      "real": true,
+      "constructed": false,
+      "httpStatus": 200,
+      "note": "公开接口，无需凭据。含站点全部公开配置（含公开站点域名 server_address / passkey_rp_id）。"
+    },
+    "models.json": {
+      "endpoint": "GET /v1/models",
+      "real": true,
+      "constructed": false,
+      "httpStatus": 200,
+      "note": "Bearer <sk- 渠道 key>。用于校验挂件条目 matchIds。"
+    },
+    "billing-subscription.json": {
+      "endpoint": "GET /v1/dashboard/billing/subscription",
+      "real": true,
+      "constructed": false,
+      "httpStatus": 200,
+      "note": "hard_limit_usd=100000000 是上游 controller/billing.go:56-58 的\"无限额度\"哨兵值。"
+    },
+    "billing-usage.json": {
+      "endpoint": "GET /v1/dashboard/billing/usage?start_date=<Y>-01-01&end_date=<Y>-12-31",
+      "real": true,
+      "constructed": false,
+      "httpStatus": 200,
+      "note": "total_usage 单位 = USD 美分（controller/billing.go:104 的 amount*100）。数值随真实用量变化。"
+    },
+    "user-self-unauthorized.json": {
+      "endpoint": "GET /api/user/self （无 Authorization 头）",
+      "real": true,
+      "constructed": false,
+      "httpStatus": 401,
+      "note": "真实 401 响应体：{\"code\":\"AUTH_UNAUTHORIZED\",...}（middleware/auth.go:227-229）。"
+    },
+    "user-self.json": {
+      "endpoint": "GET /api/user/self （Authorization: Bearer <用户系统访问令牌>）",
+      "real": false,
+      "constructed": true,
+      "httpStatus": 200,
+      "note": "本机只有 sk- 渠道 key，该接口一律 401，无法取得真实成功响应。此文件按上游 v1.0.0-rc.40 controller/user.go:491-523 buildSelfUserData 的字段形状构造；quota/used_quota 与 billing-usage.json 自洽（used_quota = round(total_usage/100 × quota_per_unit)）。注意：rc.40 的 DTO 中**没有** unlimited_quota / remain_quota / access_token 字段。"
+    },
+    "billing-subscription-finite.json": {
+      "endpoint": "GET /v1/dashboard/billing/subscription（非 unlimited token 形态）",
+      "real": false,
+      "constructed": true,
+      "httpStatus": 200,
+      "note": "本机 token 是 unlimited，永远拿不到非哨兵形态。此文件按 controller/billing.go:41-66 计算构造，与 user-self.json 自洽：hard_limit_usd = (quota+used_quota)/quota_per_unit = 68.988916。用于覆盖 normalizeBalance 的\"total 有限、remaining = total - used\"分支。"
+    },
+    "user-self-unlimited.json": {
+      "endpoint": "GET /api/user/self（unlimited 形态）",
+      "real": false,
+      "constructed": true,
+      "httpStatus": 200,
+      "note": "⚠️ 上游 v1.0.0-rc.40 的 buildSelfUserData（controller/user.go:491-523）**不返回** unlimited_quota/remain_quota，本机也无法取得该响应。此文件是**为覆盖 SPEC §5.1.1 的 unlimited 分支而人为构造**的输入，不代表任何真实站点行为；只能当纯函数输入用。"
+    },
+    "error-non-json.html": {
+      "endpoint": "（构造）任意上游返回 text/html 的场景",
+      "real": false,
+      "constructed": true,
+      "httpStatus": 502,
+      "note": "**构造**样本：本机中转站实测全部返回 application/json，没有真实 HTML 错误页可采。此文件是反代/网关 502 页的典型形态，供 NON_JSON 分支单测使用（示例 HTTP 502 + text/html）。"
+    }
+  }
+}

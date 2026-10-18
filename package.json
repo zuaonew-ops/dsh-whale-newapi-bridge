@@ -1,0 +1,52 @@
+{
+  "name": "dsh-whale-newapi-bridge",
+  "version": "0.1.1",
+  "description": "把 New API 中转站余额接入 DSH 小鲸鱼挂件（自动维护 .dshw-api.json 模型条目 + 本机余额桥）",
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "dsh-plugin",
+    "new-api",
+    "one-api",
+    "balance",
+    "whale-widget"
+  ],
+  "homepage": "https://github.com/zuaonew-ops/dsh-whale-newapi-bridge#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zuaonew-ops/dsh-whale-newapi-bridge.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zuaonew-ops/dsh-whale-newapi-bridge/issues"
+  },
+  "author": "zuaonew-ops",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "SPEC.md",
+    "docs",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "engines": {
+    "node": ">=18",
+    "dsh": ">=0.2.0-rc.1"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/schemastery": {
+      "optional": true
+    }
+  },
+  "license": "MIT"
+}

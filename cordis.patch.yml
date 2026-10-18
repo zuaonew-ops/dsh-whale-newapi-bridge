@@ -1,0 +1,18 @@
+# dsh-whale-newapi-bridge bundle patch.
+#
+# 本 bundle 只贡献一条宿主行（`lib/index.js`，host-only，没有 client 半区）：
+# 它把小鲸鱼挂件的余额来源接到 New API 中转站 —— 一边按 `.dshw-api.json`
+# 的扩展面维护我们自己的模型条目，一边在本机回环 HTTP 上提供
+# `/dsh-whale-newapi/{balance,status,sync,health}` 供挂件取数。
+#
+# patch 会**整行替换**被命中行的 `config`，所以这里只出现 `insert`，
+# 绝不覆写 DSH 已发布的任何行；我们这一行的 `config` 留给最终安装时
+# 由作者写入（profile 的 cordis.patch.yml 覆写）。
+#
+# `webServer` 是硬依赖（`lib/index.js` 的 `inject = ['webServer']`）：
+# Loader 会等 HTTP 服务挂载；无 HTTP 服务的 headless/TUI profile 不会加载本 bundle。
+
+- insert:
+    - id: whale-newapi-bridge
+      name: 'dsh-whale-newapi-bridge'
+      # config 留给最终安装时由作者写入（profile cordis.patch.yml 覆写）

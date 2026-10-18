@@ -1,0 +1,35 @@
+{
+  "success": true,
+  "message": "",
+  "data": {
+    "id": 1,
+    "username": "example-user",
+    "display_name": "example-user",
+    "has_password": true,
+    "role": 1,
+    "status": 1,
+    "email": "",
+    "github_id": "",
+    "discord_id": "",
+    "oidc_id": "",
+    "wechat_id": "",
+    "telegram_id": "",
+    "group": "default",
+    "quota": 25000000,
+    "used_quota": 9494458,
+    "request_count": 1234,
+    "aff_code": "AAAA0000",
+    "aff_count": 0,
+    "aff_quota": 0,
+    "aff_history_quota": 0,
+    "inviter_id": 0,
+    "linux_do_id": "",
+    "setting": "{}",
+    "stripe_customer": "",
+    "sidebar_modules": "{}",
+    "permissions": {
+      "sidebar_settings": true,
+      "sidebar_modules": {}
+    }
+  }
+}

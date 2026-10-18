@@ -1,0 +1,17 @@
+{
+  "success": true,
+  "message": "",
+  "data": {
+    "id": 1,
+    "username": "example-unlimited",
+    "display_name": "example-unlimited",
+    "role": 1,
+    "status": 1,
+    "group": "default",
+    "quota": 0,
+    "used_quota": 9494458,
+    "request_count": 12,
+    "unlimited_quota": true,
+    "remain_quota": 0
+  }
+}
