@@ -74,18 +74,26 @@ New API 中转站 `https://relay.example.com`，使挂件里出现
 ```json
 {
   "name": "dsh-whale-newapi-bridge",
-  "version": "0.1.0",
-  "description": "把 New API 中转站余额接入 DSH 小鲸鱼挂件（自动维护 .dshw-api.json 模型条目 + 本机余额桥）",
+  "version": "0.2.0",
+  "description": "把 New API 中转站余额接入 DSH 小鲸鱼挂件（自动维护 .dshw-api.json 模型条目 + 本机余额桥 + 设置页）",
   "type": "module",
   "main": "lib/index.js",
-  "exports": { ".": "./lib/index.js", "./package.json": "./package.json" },
-  "files": ["lib", "cordis.patch.yml", "README.md"],
-  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } },
+  "exports": { ".": "./lib/index.js", "./client": "./client.js", "./package.json": "./package.json" },
+  "files": ["lib", "client.js", "cordis.patch.yml", "README.md", "SPEC.md", "docs", "LICENSE"],
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": { "platform": "web", "immediately": true, "inject": [] }
+  },
   "engines": { "node": ">=18", "dsh": ">=0.2.0-rc.1" },
   "peerDependenciesMeta": { "@deepseek-ai/schemastery": { "optional": true } },
   "license": "MIT"
 }
 ```
+
+`client.js`（v0.2.0 新增）是纯浏览器模块：手写 `window.__ModuleLoader__.load({ id, factory })`，
+从浏览器模块表 `require('react')`，无 JSX / 无构建步骤；`dsh.client.platform = 'web'` 让宿主在 Web 端加载它。
+它向 `settings.section` 插槽注册一页 `{ name:'settings.section', id:'whale-newapi-bridge', order:46,
+label:() => t('ui.whaleNewapi.nav') }`，通过 `/dsh-whale-newapi/settings` 读写配置（§6.5）。
 
 `cordis.patch.yml`（要点，注意 patch 会**整行替换** `config`，所以只 insert 我们自己的一行）：
 
@@ -133,6 +141,27 @@ export function apply(ctx, config) { … }
 | `syncIntervalSeconds` | number | `300` | 周期同步间隔 |
 | `requestTimeoutMs` | number | `15000` | 上游超时 |
 | `enabled` | boolean | `true` | 总开关（false 时删除自己写的条目并注销路由语义） |
+
+### 4.7 设置文件与生效优先级（v0.2.0 新增）
+
+设置页（`client.js`）把改过的键写入 `$DSH_HOME/whale-newapi-bridge-settings.json`
+（默认 `%USERPROFILE%\.dsh\whale-newapi-bridge-settings.json`），格式为扁平 JSON 对象、只含覆盖键、
+固定键序、2 空格缩进、UTF-8、权限 `0600`。**凭据值不落此文件**：只存 `credentialRef` /
+`credentialCandidates` 的名字，真值仍在 `.credentials.yaml`。
+
+生效优先级（高 → 低）：
+
+1. `whale-newapi-bridge-settings.json`（设置页保存；启动时读取并 overlay 到 `normalizeConfig`）
+2. `cordis.patch.yml` 里该项的 `config`（Loader yml）
+3. 代码内置默认（§4 表格的「默认」列）
+
+约定：
+
+* 只允许 §4 表格中的 16 个键；读取时丢弃未知键，保存时整版拒绝（`400`，`fields.<key>`）。
+* 文件缺失 → 静默回退（不算错误）；JSON 损坏 → 整体忽略、在 `warnings` 与 `/status` 说明，**绝不覆盖**坏文件。
+* 单键非法（类型/范围）→ 读取阶段该键回退 yml + `warning`；保存阶段整版拒绝且**不写文件**（不会半写）。
+* 保存成功后热生效：更新 `state.config` + 重启同步定时器 + 触发一次后台同步；无需重启宿主。
+* 「恢复默认」= 删除设置文件并回退 yml / 默认值（见 §6.5 `reset`）。
 
 ## 5. 模块接口（冻结）
 
@@ -245,6 +274,25 @@ export function summarizeRegistry(registry)                  // → { modelIds:s
 **硬性要求**：只增删我们自己的 `id` 条目；**必须保留** `usage`（可能很大）与其它模型条目的所有字段；
 写入是原子的；解析失败时不写并返回错误；`changed===false` 时不写（避免 mtime 抖动）。
 
+### 5.4 `lib/settings.mjs`（core，v0.2.0 新增）
+
+```js
+export const SETTINGS_FILE = 'whale-newapi-bridge-settings.json'
+export const PERSISTED_KEYS = [ /* 16 个键，顺序同 §4 表格 */ ]
+export function resolveSettingsPath(dshHome)                 // → string（$DSH_HOME 根下；$DSH_HOME → ~/.dsh）
+export function readSettingsFile(file)                       // → { ok, existed, values, error, warnings }
+                                                             //   缺失 → { ok:true, existed:false, values:{} }
+                                                             //   坏 JSON / 非对象 → { ok:false, … }（不写、不覆盖）
+export function atomicWriteSettings(file, values)            // → { ok, path, mode, error }
+                                                             //   写临时文件 + rename，权限 0600，2 空格缩进
+export function deleteSettingsFile(file)                     // → { ok, existed, error }（不存在也算 ok）
+export function validateSettingsPatch(patch)                 // → { ok, patch, fields, errors }
+                                                             //   非对象 → 整版失败；逐键校验并收集全部错误
+```
+
+* `validateSettingsPatch` 只接受 §4 的键；错误形状 `fields: { <key>: '错误说明' }`，供设置页按字段展示。
+* 该模块是纯文件 + 校验层：不解析凭据、不联网、不读 yml，便于隔离单测（`test/verify-settings.mjs`）。
+
 ## 6. 路由契约（core；路径前缀 `/dsh-whale-newapi`）
 
 所有路由必须先过**回环信任栅栏**（照抄 `dsh-better-sidebar/src/trust-fence.ts` 的语义：
@@ -267,6 +315,29 @@ export function summarizeRegistry(registry)                  // → { modelIds:s
    `{ bridgeBaseUrl?, credentialRef?, modelId?, fallbackTotal? }`（仅回环 + 只接受这些键）。
    → `{ ok, changed, mode, entry, syncAt, balance:{…}, warnings }`。
 4. `GET /dsh-whale-newapi/health` —— `{ ok:true, name, version, enabled }`（**无鉴权**，只用于本机自检）。
+5. `GET /dsh-whale-newapi/settings` —— **设置页数据源**（回环同源，不要求 Bearer，见 §6.5）。
+6. `POST /dsh-whale-newapi/settings`、`POST /dsh-whale-newapi/settings/reset` ——
+   设置页写入口（回环同源，不要求 Bearer，见 §6.5）。
+
+### 6.5 设置路由契约（v0.2.0 新增）
+
+`/settings*` 同样先过本节开头的回环信任栅栏，非法 → `403`；**不要求 Bearer**
+（它们只服务本机设置页，且不返回余额、不返回凭据明文）。
+
+* `GET /settings` → `200`
+  `{ ok:true, version, config:{…16 键生效值…}, persisted:{…设置文件覆盖的键…}, settingsPath,
+     credential:{ ref, present, source }, sync:{…}, balance:{…}, warnings:[…] }`。
+  `config` 是回填表单所需的真实值（含 `userId` 等）；**任何凭据值都不出现**（至多 `present` / `len=N`）。
+* `POST /settings`，body = 扁平 JSON 对象（只含要改的键）。语义：校验 → 与当前生效配置合并 →
+  原子写设置文件（只写改过的键）→ 更新 `state.config` → 重启同步定时器 → 触发一次后台同步。
+  - 非对象 body → `400 { ok:false, code:'BAD_REQUEST', error }`；
+  - 任一键非法 → `400 { ok:false, code:'BAD_SETTINGS', error, fields:{ <key>:'…' } }`（整版拒绝、不落盘）；
+  - 成功 → `200 { ok:true, config, persisted, applied:[…], warnings }`；
+  - 写盘失败 → `500 { ok:false, code:'SAVE_FAILED', error }`。
+* `POST /settings/reset` → 删除设置文件（不存在也算成功）→ `200 { ok:true, config, persisted:{} }`，热生效。
+* 其它方法 → `405 { ok:false, code:'METHOD' }`。
+* 信封是**扁平** `{ ok, … }`（与 `/balance`、`/status` 一致），不是 `{ ok, value }`；
+  前端 `client.js` 按扁平形状解析。
 
 **桥地址自动探测顺序**：`config.bridgeBaseUrl` → `process.env.DSH_WEB_URL` →
 `process.env.DSH_WEB_PORT`/`PORT` → `process.argv` 里的 `--port=<n>` → 默认 `http://127.0.0.1:19387`。
@@ -280,6 +351,8 @@ export function summarizeRegistry(registry)                  // → { modelIds:s
 3. 只允许 `http:`/`https:` 上游；`baseUrl` 解析失败即拒绝；不接受 URL 里带 userinfo。
 4. 写入 `.dshw-api.json` 前必须 `readWhaleRegistry` 成功；坏文件 → 只报错不写。
 5. 插件加载/同步失败**不得**影响宿主：所有 `apply` 内部路径包 try/catch。
+6. 设置路由（`/settings*`）同样过回环信任栅栏；只写固定路径的设置文件（不接受外部路径），
+   响应与错误里不得出现凭据明文。
 
 ## 8. 验收标准（作者最终判定，verify 提供证据）
 
@@ -295,6 +368,9 @@ export function summarizeRegistry(registry)                  // → { modelIds:s
 * A6 小鲸鱼侧：条目被小鲸鱼读到时 `hasBalanceApi`/`balanceMode`/`error` 符合预期
   （能取到 `/dsh-whale/api-models.json` 就用它；取不到则用等价离线断言 + 说明为何不能取）。
 * A7 回滚：`docs/INSTALL.md` 的回滚步骤可用；执行后 profile 与 `.dshw-api.json` 回到安装前状态。
+* A8 设置页（v0.2.0）：`GET /settings` 返回 16 键生效配置；`POST /settings` 保存后立即热生效（无需重启），
+  设置文件只含改过的键；非法字段 `400` 且不落盘；`reset` 删除文件后回退 yml/默认；
+  `client.js` 在「设置 → 中转站」渲染表单与状态区并按 5s 轮询。
 
 ## 9. 报告纪律
 

@@ -1,7 +1,7 @@
 {
   "name": "dsh-whale-newapi-bridge",
-  "version": "0.1.1",
-  "description": "把 New API 中转站余额接入 DSH 小鲸鱼挂件（自动维护 .dshw-api.json 模型条目 + 本机余额桥）",
+  "version": "0.2.0",
+  "description": "把 New API 中转站余额接入 DSH 小鲸鱼挂件（设置页配置 + 自动维护 .dshw-api.json 模型条目 + 本机余额桥）",
   "keywords": [
     "dsh",
     "deepseek-harness",
@@ -24,10 +24,12 @@
   "main": "lib/index.js",
   "exports": {
     ".": "./lib/index.js",
+    "./client": "./client.js",
     "./package.json": "./package.json"
   },
   "files": [
     "lib",
+    "client.js",
     "cordis.patch.yml",
     "README.md",
     "SPEC.md",
@@ -37,6 +39,11 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": []
     }
   },
   "engines": {
